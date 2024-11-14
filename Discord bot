@@ -1,0 +1,111 @@
+import discord
+from discord.ext import commands
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('AZ_Admin')
+handler = logging.FileHandler(filename='discord_bot.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
+
+intents = discord.Intents.default()
+intents.messages = True
+intents.message_content = True
+intents.guilds = True
+intents.members = True
+
+# Initialize bot
+bot = commands.Bot(command_prefix='!', intents=intents, description='AZ Admin Bot')
+
+@bot.event
+async def on_ready():
+    logger.info(f'Logged in as {bot.user} (ID: {bot.user.id})')
+    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
+
+@bot.event
+async def on_message(message):
+    logger.info(f'Message from {message.author}: {message.content}')
+    await bot.process_commands(message)
+
+@bot.event
+async def on_member_join(member):
+    logger.info(f'{member} joined the server.')
+    await member.guild.system_channel.send(f'Welcome {member.mention} to the server!')
+
+@bot.event
+async def on_member_remove(member):
+    logger.info(f'{member} left the server.')
+    await member.guild.system_channel.send(f'{member.mention} has left the server.')
+
+# Basic administrative commands
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def kick(ctx, member: discord.Member, *, reason=None):
+    await member.kick(reason=reason)
+    await ctx.send(f'User {member} has been kicked for {reason}.')
+    logger.info(f'User {member} has been kicked for {reason}.')
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def ban(ctx, member: discord.Member, *, reason=None):
+    await member.ban(reason=reason)
+    await ctx.send(f'User {member} has been banned for {reason}.')
+    logger.info(f'User {member} has been banned for {reason}.')
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def unban(ctx, *, member):
+    banned_users = await ctx.guild.bans()
+    member_name, member_discriminator = member.split('#')
+    for ban_entry in banned_users:
+        user = ban_entry.user
+        if (user.name, user.discriminator) == (member_name, member_discriminator):
+            await ctx.guild.unban(user)
+            await ctx.send(f'User {user} has been unbanned.')
+            logger.info(f'User {user} has been unbanned.')
+            return
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def change_name(ctx, *, new_name: str):
+    await ctx.guild.me.edit(nick=new_name)
+    await ctx.send(f'Bot name changed to {new_name}.')
+    logger.info(f'Bot name changed to {new_name}.')
+
+# Additional useful commands
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def mute(ctx, member: discord.Member, *, reason=None):
+    role = discord.utils.get(ctx.guild.roles, name='Muted')
+    if not role:
+        role = await ctx.guild.create_role(name='Muted')
+        for channel in ctx.guild.channels:
+            await channel.set_permissions(role, speak=False, send_messages=False, read_message_history=True, read_messages=False)
+    await member.add_roles(role, reason=reason)
+    await ctx.send(f'User {member} has been muted for {reason}.')
+    logger.info(f'User {member} has been muted for {reason}.')
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def unmute(ctx, member: discord.Member):
+    role = discord.utils.get(ctx.guild.roles, name='Muted')
+    await member.remove_roles(role)
+    await ctx.send(f'User {member} has been unmuted.')
+    logger.info(f'User {member} has been unmuted.')
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send('Pong!')
+    logger.info('Ping command used.')
+
+@bot.command()
+async def info(ctx):
+    embed = discord.Embed(title="AZ Admin Bot", description="A versatile admin bot for your Discord server", color=0x00ff00)
+    embed.add_field(name="Developer", value="Your Name", inline=False)
+    embed.add_field(name="Prefix", value="!", inline=False)
+    await ctx.send(embed=embed)
+    logger.info('Info command used.')
+
+# Run bot
+bot.run('YOUR_BOT_TOKEN')
